@@ -1,6 +1,6 @@
 {
-  "name": "講座チェックリスト",
-  "short_name": "講座チェック",
+  "name": "間違えた問題 受け箱",
+  "short_name": "受け箱",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",
