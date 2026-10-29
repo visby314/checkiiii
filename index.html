@@ -151,13 +151,19 @@ select,.tool{border:1px solid var(--rule-soft);border-radius:999px}
 .bulk{border-top:1px dashed var(--rule-soft)}
 .sname .done{border-radius:999px}
 .legend span::before{border-radius:999px}
+.headr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sync{font-size:.75rem;font-weight:700;color:var(--muted)}
+.sync[data-kind="ok"]{color:#15803d}.sync[data-kind="warn"]{color:#c2410c}
+.sheet-box input[type=text],.sheet-box input[type=password]{font:inherit;font-size:16px;width:100%;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px 10px}
+.subh{margin:10px 0 0;font-size:.95rem;border-top:1px dashed var(--rule);padding-top:12px}
+.sheet-head h2{font-family:var(--f-body);font-weight:700}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="head">
     <h1>講座チェックリスト</h1>
-    <button class="tool" id="backupBtn" type="button">記録の書き出し・読み込み</button>
+    <div class="headr"><span class="sync" id="sync" role="status"></span><button class="tool" id="backupBtn" type="button">保存と同期</button></div>
   </div>
   <div class="legend"><span class="k1">視聴</span><span class="k2">演習（自力で解いた）</span><span class="k3">復習（解き直した）</span></div>
 
@@ -181,12 +187,19 @@ select,.tool{border:1px solid var(--rule-soft);border-radius:999px}
   </div>
 
   <main id="course"></main>
-  <p class="note">番号は河野塾の動画ファイル名の先頭番号と同じです。マナビスの講座名はファイル名（例：ハイレベル化学12）に合わせています。記録はこの端末の中にだけ保存されます。</p>
+  <p class="note">番号は河野塾の動画ファイル名の先頭番号と同じです。マナビスの講座名はファイル名（例：ハイレベル化学12）に合わせています。記録はこの端末に保存され、「保存と同期」で GitHub に送る設定をすると別の端末とそろいます。</p>
 </div>
 
 <div class="sheet" id="sheet" hidden>
   <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-    <div class="sheet-head"><h2 id="sheetTitle">記録の書き出し・読み込み</h2><button class="tool" id="sheetClose" type="button">閉じる</button></div>
+    <div class="sheet-head"><h2 id="sheetTitle">保存と同期</h2><button class="tool" id="sheetClose" type="button">閉じる</button></div>
+    <p class="note">GitHub の非公開リポジトリ（受け箱と同じ study-inbox）に記録を送ると、別の端末と同じ記録になり、Claudeが進み具合を読んでダメ出しできます。記録は records/kouza.json に入ります。鍵はこの端末の中だけに保存されます。</p>
+    <label class="note" for="owner">ユーザー名</label><input id="owner" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="visby314">
+    <label class="note" for="repo">リポジトリ名</label><input id="repo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="study-inbox">
+    <label class="note" for="token">鍵（Fine-grained token）</label><input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="受け箱アプリに入れたものと同じ">
+    <div class="tools"><button class="tool" id="ghSave" type="button">保存してつながるか確かめる</button></div>
+    <p class="msg" id="ghMsg" role="status"></p>
+    <h3 class="subh">コードで書き出す・読み込む</h3>
     <p class="note">別の端末に移すときや、念のための控えに使います。書き出したコードを、移したい先の端末の「読み込み」に貼り付けてください。</p>
     <div class="tools">
       <button class="tool" id="exportBtn" type="button">いまの記録を書き出す</button>
@@ -217,15 +230,19 @@ select,.tool{border:1px solid var(--rule-soft);border-radius:999px}
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   // ---- state（この端末の中だけに保存）----
-  let state = {};
+  // stamp：項目ごとの最終変更時刻(u)と、各段階を付けた日(d)。GitHub同期で使う
+  let state = {}, stamp = {}, dirty = false;
   let ui = {tab:'kagaku', filter:0, open:{}};
-  try { const raw = localStorage.getItem(LS_KEY); if (raw) { const v = JSON.parse(raw); state = v.state || {}; ui = Object.assign(ui, v.ui || {}); } } catch(e) {}
+  try { const raw = localStorage.getItem(LS_KEY); if (raw) { const v = JSON.parse(raw); state = v.state || {}; ui = Object.assign(ui, v.ui || {}); stamp = v.stamp || {}; dirty = !!v.dirty; } } catch(e) {}
   function normalize(){ COURSES.forEach(c => { if (!state[c.id] || typeof state[c.id] !== 'object') state[c.id] = {}; }); }
   normalize();
+  // 同期を入れる前の記録：いつ付けたか分からないので古い時刻にしておく
+  const OLD = '2001-01-01T00:00:00.000Z';
+  COURSES.forEach(c => Object.keys(state[c.id]).forEach(n => { const k = c.id + ':' + n; if (!stamp[k]) { stamp[k] = {u:OLD, d:{}}; dirty = true; } }));
   if (!BY_ID[ui.tab]) ui.tab = 'kagaku';
   let saveFailed = false;
   function saveLocal(){
-    try { localStorage.setItem(LS_KEY, JSON.stringify({state, ui})); saveFailed = false; }
+    try { localStorage.setItem(LS_KEY, JSON.stringify({state, ui, stamp, dirty})); saveFailed = false; }
     catch(e) { if (!saveFailed) { saveFailed = true; alertBar('保存できませんでした。プライベートブラウズでは記録が残りません。'); } }
   }
   function alertBar(t){ const n = document.querySelector('.note'); if (n) n.textContent = t; }
@@ -324,21 +341,94 @@ select,.tool{border:1px solid var(--rule-soft);border-radius:999px}
     const cid = ui.tab; const st = state[cid];
     if (chip){
       const n = +chip.closest('.row').dataset.n, bit = +chip.dataset.bit;
-      st[n] = (st[n]||0) ^ bit; if (!st[n]) delete st[n];
+      const was = st[n]||0; st[n] = was ^ bit; touch(cid, n, was, st[n]); if (!st[n]) delete st[n];
       changed(); return;
     }
     const bulk = e.target.closest('[data-bulk]');
     if (bulk){
       const d = bulk.closest('details.sec'); const start = +d.dataset.start, len = +d.dataset.len, bit = +bulk.dataset.bulk;
       let all = true; for (let i=0;i<len;i++) if (!((st[start+i]||0)&bit)) { all = false; break; }
-      for (let i=0;i<len;i++){ const k = start+i; st[k] = all ? ((st[k]||0) & ~bit) : ((st[k]||0) | bit); if (!st[k]) delete st[k]; }
+      for (let i=0;i<len;i++){ const k = start+i, was = st[k]||0; st[k] = all ? (was & ~bit) : (was | bit); if (st[k] !== was) touch(cid, k, was, st[k]); if (!st[k]) delete st[k]; }
       changed();
     }
   });
+  const today = () => { const d = new Date(Date.now() - 4*3600000); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+  function touch(cid, n, was, now){
+    const k = cid + ':' + n; const s = stamp[k] || (stamp[k] = {u:OLD, d:{}});
+    s.u = new Date().toISOString();
+    for (const x of STAGES) { if ((now & x.bit) && !(was & x.bit)) s.d[x.bit] = today(); if (!(now & x.bit)) delete s.d[x.bit]; }
+  }
   function changed(){
-    saveLocal();
+    dirty = true; saveLocal(); clearTimeout(syncTimer); syncTimer = setTimeout(sync, 800);
     const y = window.scrollY; renderOverview(); renderCourse(); window.scrollTo(0, y);
   }
+
+  // ---- GitHub 同期（study-inbox の records/kouza.json。Claudeが進み具合を読めるようにする） ----
+  const LS_GH = 'study-inbox-settings-v1', PATH = 'records/kouza.json';
+  let gh = {owner:'', repo:'', token:''};
+  try { Object.assign(gh, JSON.parse(localStorage.getItem(LS_GH) || '{}')); } catch(e) {}
+  const ghReady = () => !!(gh.owner && gh.repo && gh.token);
+  const api = (path, opt={}) => fetch(`https://api.github.com/repos/${encodeURIComponent(gh.owner)}/${encodeURIComponent(gh.repo)}${path}`, Object.assign({
+    headers: {'Authorization': 'Bearer ' + gh.token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}}, opt));
+  const enc = t => btoa(unescape(encodeURIComponent(t)));
+  const dec = s => decodeURIComponent(escape(atob(s.replace(/\n/g, ''))));
+  function localItems(){
+    const items = {};
+    for (const k of Object.keys(stamp).sort()) { const [cid, n] = k.split(':'); if (!state[cid]) continue; items[k] = {b: state[cid][n] || 0, u: stamp[k].u, d: stamp[k].d}; }
+    return items;
+  }
+  function summary(){
+    return COURSES.map(c => { const nums = itemNums(c), r = count(c.id, nums); return {id:c.id, name:c.full || c.name, total:nums.length, 視聴:r[0], 演習:r[1], 復習:r[2]}; });
+  }
+  function setSync(t, kind){ const s = document.getElementById('sync'); if (s) { s.textContent = t; s.dataset.kind = kind || ''; } }
+  let syncing = false, again = false, syncTimer = 0;
+  async function sync(){
+    if (!ghReady()) { setSync(''); return; }
+    if (syncing) { again = true; return; }
+    syncing = true; setSync('同期中…');
+    try {
+      for (let tryNo = 0; tryNo < 2; tryNo++) {
+        const r = await api('/contents/' + PATH);
+        let remote = null, sha;
+        if (r.ok) { const j = await r.json(); sha = j.sha; remote = JSON.parse(dec(j.content)); }
+        else if (r.status !== 404) throw new Error('HTTP ' + r.status);
+        const items = localItems();
+        for (const [k, x] of Object.entries((remote && remote.items) || {})) { if (!items[k] || x.u > items[k].u) items[k] = x; }
+        // 合わせた結果を端末に戻す
+        for (const [k, x] of Object.entries(items)) { const [cid, n] = k.split(':'); if (!state[cid]) continue; if (x.b) state[cid][n] = x.b; else delete state[cid][n]; stamp[k] = {u:x.u, d:x.d || {}}; }
+        const out = {v:1, app:'kouza-checklist', note:'b は 1=視聴 2=演習 4=復習 の合計。d は各段階を付けた日（同期を入れる前に付けたものは日付なし）', summary: summary(), items};
+        const same = remote && JSON.stringify(remote.items) === JSON.stringify(items) && JSON.stringify(remote.summary) === JSON.stringify(out.summary);
+        if (same) { dirty = false; break; }
+        out.updatedAt = new Date().toISOString();
+        const body = {message: 'kouza: update', content: enc(JSON.stringify(out, null, 1))}; if (sha) body.sha = sha;
+        const w = await api('/contents/' + PATH, {method:'PUT', body: JSON.stringify(body)});
+        if (w.ok) { dirty = false; break; }
+        if ((w.status === 409 || w.status === 422) && tryNo === 0) continue;
+        throw new Error('HTTP ' + w.status);
+      }
+      saveLocal(); setSync('同期済み', 'ok'); const y = window.scrollY; renderAll(); window.scrollTo(0, y);
+    } catch(err) {
+      setSync(/40[13]/.test(String(err.message || err)) ? '鍵を確認してください' : 'この端末に保存中', 'warn');
+    } finally { syncing = false; if (again) { again = false; sync(); } }
+  }
+  document.getElementById('owner').value = gh.owner; document.getElementById('repo').value = gh.repo; document.getElementById('token').value = gh.token;
+  document.getElementById('ghSave').addEventListener('click', async () => {
+    const m = document.getElementById('ghMsg');
+    gh = {owner: document.getElementById('owner').value.trim(), repo: document.getElementById('repo').value.trim(), token: document.getElementById('token').value.trim()};
+    try { localStorage.setItem(LS_GH, JSON.stringify(gh)); } catch(e) {}
+    if (!ghReady()) { m.textContent = '3つとも入れてください。'; return; }
+    m.textContent = '確かめています…';
+    try {
+      const r = await api('');
+      if (r.status === 401) { m.textContent = '鍵が正しくないか、期限が切れています。'; return; }
+      if (r.status === 404) { m.textContent = 'リポジトリが見つかりません。名前と、鍵にこのリポジトリの許可があるかを確認してください。'; return; }
+      if (!r.ok) { m.textContent = 'GitHubにつながりませんでした（' + r.status + '）。'; return; }
+      const j = await r.json();
+      if (!j.private) { m.textContent = 'このリポジトリは公開になっています。非公開のリポジトリを使ってください。'; return; }
+      m.textContent = 'つながりました。記録は records/kouza.json に入ります。'; dirty = true; sync();
+    } catch(e) { m.textContent = 'GitHubにつながりませんでした。電波を確認してください。'; }
+  });
+  window.addEventListener('online', sync);
 
   // ---- 書き出し・読み込み ----
   const sheet = document.getElementById('sheet'), code = document.getElementById('code'), msg = document.getElementById('msg');
@@ -370,11 +460,14 @@ select,.tool{border:1px solid var(--rule-soft);border-radius:999px}
       setMsg((parsed.at ? new Date(parsed.at).toLocaleString('ja-JP') + ' に書き出した記録です。' : '') + 'いまの端末の記録は消えて、この内容に置き換わります。');
       return;
     }
-    state = parsed.state; normalize(); saveLocal(); renderAll();
+    const before = JSON.parse(JSON.stringify(state)); state = parsed.state; normalize();
+    COURSES.forEach(c => { const ns = new Set([...Object.keys(before[c.id] || {}), ...Object.keys(state[c.id])]); ns.forEach(n => { const w = (before[c.id] || {})[n] || 0, v = state[c.id][n] || 0; if (w !== v) touch(c.id, n, w, v); }); });
+    dirty = true; saveLocal(); renderAll(); sync();
     importArmed = false; resetImport(); setMsg('読み込みました。');
   });
 
   renderAll();
+  sync();
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
