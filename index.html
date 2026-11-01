@@ -8,10 +8,13 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="講座チェック">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#f7f7f5">
+<meta name="theme-color" content="#ffffff">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <style>/* Layout: 試験会場の掲示と答案用紙。白と黒の強いコントラスト、太罫線、角は立てる。残り本数を一番大きく出して圧をかける */
 :root{
   --bg:#ffffff; --paper:#ffffff; --ink:#0b0b0c; --muted:#5b5b60; --rule:#0b0b0c; --rule-soft:#e4e4e7;
@@ -157,12 +160,92 @@ select,.tool{border:1px solid var(--rule-soft);border-radius:999px}
 .sheet-box input[type=text],.sheet-box input[type=password]{font:inherit;font-size:16px;width:100%;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px 10px}
 .subh{margin:10px 0 0;font-size:.95rem;border-top:1px dashed var(--rule);padding-top:12px}
 .sheet-head h2{font-family:var(--f-body);font-weight:700}
+/* 夜っぽい白の画面：白地・墨色・薄い青緑。線は細く、字は間をあけ、英字は大文字で広めに */
+:root,:root:not([data-theme="light"]),:root[data-theme="dark"]{
+  --bg:#ffffff; --paper:#ffffff; --ink:#222222; --muted:#6f6f7b; --rule:#e2e2e6; --rule-soft:#ececef; --tint:#f3f5f6;
+  --accent:#4a8486; --accent-soft:#e7f1f1; --teal:#acd0d1; --teal-ink:#1e3f40;
+  --ok:#3f7d6b; --ok-soft:#e8f2ee; --warn:#a8613a; --warn-soft:#f8eee7; --bad:#a23b3b; --bad-soft:#f6e9e9;
+  --f-display:"Work Sans","Zen Kaku Gothic New",sans-serif; --f-num:"Work Sans","Zen Kaku Gothic New",sans-serif;
+  --c1:#3a6db3; --c2:#3c8758; --c3:#c0682f; color-scheme:light;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI",sans-serif;
+}
+body{font-size:15px;letter-spacing:.08em;line-height:1.75;background:var(--bg);color:var(--ink)}
+.wrap{gap:22px}
+.head{border-bottom:0;padding-bottom:0;align-items:center}
+h1{font-family:var(--f-body);font-weight:500;font-size:1.15rem;letter-spacing:.25em;line-height:1.4}
+h1[data-en]::before{content:attr(data-en);display:block;font-family:"Work Sans",sans-serif;font-weight:400;font-size:1.6rem;letter-spacing:.32em;color:var(--ink);margin-bottom:4px}
+.sync{letter-spacing:.15em}
+/* タブは下線で */
+.seg{background:transparent;border-radius:0;padding:0;border-bottom:1px solid var(--rule);gap:0}
+.segbtn{border-radius:0;letter-spacing:.2em;padding:10px 2px;color:var(--muted);font-weight:500}
+.segbtn[aria-selected="true"]{background:transparent;box-shadow:inset 0 -2px 0 var(--teal);color:var(--ink)}
+.minis,.minis.sv{background:transparent;border:1px solid var(--rule);border-radius:2px;padding:2px}
+.mini{border-radius:1px;letter-spacing:.15em;font-weight:500}
+.mini[aria-selected="true"],.mini[aria-checked="true"]{background:var(--teal);color:var(--teal-ink);box-shadow:none}
+/* カードは箱にせず、細い線で区切る */
+.card,.att,.sess,.book,.trk{border:0;border-left:0;border-radius:0;background:transparent;box-shadow:none}
+.card{padding:6px 0 24px;border-bottom:1px solid var(--rule)}
+.card.plain{border-bottom:1px solid var(--rule)}
+.att,.sess,.book{padding:14px 0;border-bottom:1px solid var(--rule-soft)}
+ol.atts{gap:0}
+.flabel{font-weight:500;letter-spacing:.18em;color:var(--muted);font-size:.78rem}
+.chead{font-weight:500;letter-spacing:.18em}
+.note{letter-spacing:.06em}
+/* 小さなラベル（科目・試験など）は角の立った札 */
+.chip{border-radius:2px;border:1px solid var(--rule);color:var(--muted);font-weight:500;letter-spacing:.12em;padding:5px 12px}
+.chip[aria-checked="true"],.chip[aria-pressed="true"],#subjChips .chip[aria-checked="true"]{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
+#subjChips .chip[aria-checked="true"] .dot{background:var(--teal-ink)}
+.asub em,.prov,.req{border-radius:1px;background:var(--teal);color:var(--teal-ink);letter-spacing:.12em}
+/* ボタン */
+.primary{border-radius:0;background:var(--ink);letter-spacing:.35em;font-weight:500}
+.tool{border-radius:0;border-color:var(--rule);color:var(--ink);letter-spacing:.12em;font-weight:500}
+.tool.danger{color:var(--bad);border-color:#e6c9c9}
+.cb,.rb{border-radius:0;border-color:var(--rule);letter-spacing:.12em;font-weight:500}
+.cb.play,.rb.play{background:var(--ink);border-color:var(--ink)}
+input[type=text],input[type=password],input[type=number],input[type=date],input[type=time],textarea,select{border-radius:0;border:0;border-bottom:1px solid var(--rule);padding-left:2px;letter-spacing:.06em}
+/* 数字（時計・点数・時間）は細いローマン体で、字間をあける */
+.cbig,.clast,.ascore,.total b,.tmclock,.plhead b,.kpis b,.ysum>b{font-family:"Work Sans",var(--f-body);font-weight:300;letter-spacing:.06em}
+.cbig{font-size:clamp(3.6rem,18vw,5.6rem)}
+.clock{border-color:var(--rule)}
+.ameta,.tm{letter-spacing:.14em}
+.ygroup h2{font-family:"Work Sans",var(--f-body);font-weight:400;letter-spacing:.25em;font-size:1.05rem}
+.ygroup h2::after{background:var(--rule)}
+/* 進み具合の棒は細く */
+.gbar,.pbar,.cbar,.pb,.plist .pt{height:4px;border-radius:0;background:var(--rule-soft)}
+.gbar i,.pbar i,.cbar i,.pb i,.plist .pt i{border-radius:0}
+.pbar i,.cbar i,.pb i{background:var(--accent)}
+.banner{background:transparent;border-left:2px solid var(--warn);border-radius:0;padding:6px 12px;font-weight:500}
+.kpis div{background:transparent;border-left:1px solid var(--rule);border-radius:0;padding:4px 12px}
+.gc{border-radius:0;font-family:"Work Sans",var(--f-body);font-weight:400}
+.gc.none{border:1px solid var(--rule-soft)}
+.hero{border-radius:0}
+.hero figcaption{letter-spacing:.2em;font-weight:500}
+input[type=range],input[type=checkbox],input[type=radio]{accent-color:var(--accent)}
+.trk{border-bottom:1px solid var(--rule-soft);padding:12px 2px}
+.trk.cur{background:var(--accent-soft)}
+
+/* 講座チェックリストだけの直し */
+.ov{border:0 !important;border-bottom:1px solid var(--rule) !important;border-radius:0 !important;background:transparent !important;padding:16px 0 !important;box-shadow:none !important}
+.ov h2,.ovtop h2{font-family:var(--f-body);font-weight:500;letter-spacing:.2em}
+.remain .rn{font-family:"Work Sans",var(--f-body);font-weight:300;color:var(--ink)}
+.chip.k1[aria-pressed="true"],.chip.k2[aria-pressed="true"],.chip.k3[aria-pressed="true"]{background:var(--k);border-color:var(--k);color:#fff}
+.legend span::before{border-radius:50%}
+
+.tabs{gap:0 !important;border-bottom:1px solid var(--rule)}
+.tab{border:0 !important;border-radius:0 !important;background:transparent !important;color:var(--muted) !important;font-family:var(--f-body) !important;font-weight:500 !important;letter-spacing:.18em;padding:10px 12px !important}
+.tab[aria-selected="true"]{color:var(--ink) !important;box-shadow:inset 0 -2px 0 var(--teal)}
+.overview,.coursehead,.sec,details.sec{border-radius:0 !important;box-shadow:none !important}
+.sec{border:0 !important;border-bottom:1px solid var(--rule) !important;background:transparent !important}
+.row{border-color:var(--rule-soft) !important}
+.legend span{letter-spacing:.12em}
+.sheet-box{border-radius:0}
+.sheet-head h2{letter-spacing:.2em;font-weight:500}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="head">
-    <h1>講座チェックリスト</h1>
+    <h1 data-en="COURSES">講座チェックリスト</h1>
     <div class="headr"><span class="sync" id="sync" role="status"></span><button class="tool" id="backupBtn" type="button">保存と同期</button></div>
   </div>
   <div class="legend"><span class="k1">視聴</span><span class="k2">演習（自力で解いた）</span><span class="k3">復習（解き直した）</span></div>
